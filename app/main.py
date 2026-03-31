@@ -100,16 +100,50 @@ def _dashboard_html() -> str:
     <script>
         function formatNumber(value) { return new Intl.NumberFormat('zh-CN').format(value || 0); }
         function formatUptime(seconds) { const safe = Math.max(0, Number(seconds || 0)); const hour = String(Math.floor(safe / 3600)).padStart(2, '0'); const minute = String(Math.floor((safe % 3600) / 60)).padStart(2, '0'); const second = String(safe % 60).padStart(2, '0'); return `${hour}:${minute}:${second}`; }
-        function drawLineChart(canvas, labels, values, color, fillColor) {
+        function drawLineChart(canvas, labels, values, color, fillColor, onClick) {
             const ctx = canvas.getContext('2d'); const width = canvas.width; const height = canvas.height; ctx.clearRect(0, 0, width, height);
-            const padding = { top: 18, right: 20, bottom: 36, left: 40 }; const chartWidth = width - padding.left - padding.right; const chartHeight = height - padding.top - padding.bottom; const maxValue = Math.max(...values, 1);
+            const padding = { top: 18, right: 50, bottom: 36, left: 50 }; const chartWidth = width - padding.left - padding.right; const chartHeight = height - padding.top - padding.bottom; const maxValue = Math.max(...values, 1);
+            // 绘制网格线
             ctx.strokeStyle = 'rgba(58,42,31,0.10)'; ctx.lineWidth = 1;
             for (let step = 0; step < 4; step += 1) { const y = padding.top + (chartHeight / 3) * step; ctx.beginPath(); ctx.moveTo(padding.left, y); ctx.lineTo(width - padding.right, y); ctx.stroke(); }
+            // 绘制纵坐标数值
+            ctx.fillStyle = '#6b625a'; ctx.font = '11px Segoe UI'; ctx.textAlign = 'right';
+            for (let step = 0; step < 4; step += 1) {
+                const y = padding.top + (chartHeight / 3) * step;
+                const value = Math.round(maxValue * (1 - step / 3));
+                ctx.fillText(value >= 10000 ? (value/10000).toFixed(1) + 'w' : (value >= 1000 ? (value/1000).toFixed(1) + 'k' : value), padding.left - 8, y + 3);
+            }
+            // 绘制横坐标标签
             ctx.fillStyle = '#6b625a'; ctx.font = '12px Segoe UI'; ctx.textAlign = 'center'; labels.forEach((label, index) => { const x = padding.left + (chartWidth / Math.max(labels.length - 1, 1)) * index; ctx.fillText(label, x, height - 12); });
-            const points = values.map((value, index) => { const x = padding.left + (chartWidth / Math.max(values.length - 1, 1)) * index; const y = padding.top + chartHeight - (value / maxValue) * chartHeight; return { x, y }; });
+            // 计算数据点坐标
+            const points = values.map((value, index) => { const x = padding.left + (chartWidth / Math.max(values.length - 1, 1)) * index; const y = padding.top + chartHeight - (value / maxValue) * chartHeight; return { x, y, value, label: labels[index] }; });
+            // 绘制填充区域
             ctx.beginPath(); points.forEach((point, index) => { if (index === 0) ctx.moveTo(point.x, point.y); else ctx.lineTo(point.x, point.y); }); ctx.lineTo(points[points.length - 1].x, height - padding.bottom); ctx.lineTo(points[0].x, height - padding.bottom); ctx.closePath(); ctx.fillStyle = fillColor; ctx.fill();
+            // 绘制线条
             ctx.beginPath(); points.forEach((point, index) => { if (index === 0) ctx.moveTo(point.x, point.y); else ctx.lineTo(point.x, point.y); }); ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke();
+            // 绘制数据点
             points.forEach((point) => { ctx.beginPath(); ctx.arc(point.x, point.y, 4, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke(); });
+            // 存储点击数据和回调
+            canvas._chartData = { points, padding, onClick };
+            // 点击事件处理
+            if (!canvas._clickBound) {
+                canvas.addEventListener('click', function(e) {
+                    const rect = canvas.getBoundingClientRect();
+                    const clickX = (e.clientX - rect.left) * (canvas.width / rect.width);
+                    const clickY = (e.clientY - rect.top) * (canvas.height / rect.height);
+                    const data = canvas._chartData;
+                    if (!data) return;
+                    // 查找最近的数据点
+                    let nearest = null, minDist = Infinity;
+                    data.points.forEach((p, idx) => {
+                        const dx = clickX - p.x, dy = clickY - p.y;
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+                        if (dist < 30 && dist < minDist) { minDist = dist; nearest = { ...p, index: idx }; }
+                    });
+                    if (nearest && data.onClick) data.onClick(nearest);
+                });
+                canvas._clickBound = true;
+            }
         }
         function renderRecent(rows) {
             const tbody = document.getElementById('recent-body'); tbody.innerHTML = '';
@@ -118,8 +152,12 @@ def _dashboard_html() -> str:
         async function refresh() {
             const response = await fetch('/api/dashboard/stats', { cache: 'no-store' }); const data = await response.json();
             document.getElementById('service-status').textContent = data.service.status === 'running' ? '运行中' : '异常'; document.getElementById('uptime').textContent = `运行时长 ${formatUptime(data.service.uptime_seconds)}`; document.getElementById('mini-requests').textContent = formatNumber(data.totals.requests); document.getElementById('mini-total-tokens').textContent = formatNumber(data.totals.total_tokens); document.getElementById('mini-today-tokens').textContent = formatNumber(data.totals.today_tokens); document.getElementById('chat-requests').textContent = formatNumber(data.totals.chat_requests); document.getElementById('today-requests').textContent = formatNumber(data.totals.today_requests); document.getElementById('avg-duration').textContent = `${data.totals.average_duration_ms} ms`; document.getElementById('success-rate').textContent = `成功率 ${data.totals.success_rate}%`; document.getElementById('latest-model').textContent = data.recent_requests.length ? (data.recent_requests[0].model || '-') : '-'; document.getElementById('last-refresh').textContent = `最近刷新 ${new Date().toLocaleTimeString('zh-CN', { hour12: false })}`;
-            drawLineChart(document.getElementById('daily-chart'), data.curves.daily.map((item) => item.date.slice(5)), data.curves.daily.map((item) => item.tokens), '#b14d28', 'rgba(177,77,40,0.12)');
-            drawLineChart(document.getElementById('hourly-chart'), data.curves.hourly.map((item, index) => index % 3 === 0 ? item.hour : ''), data.curves.hourly.map((item) => item.tokens), '#2f7d4a', 'rgba(47,125,74,0.12)');
+            drawLineChart(document.getElementById('daily-chart'), data.curves.daily.map((item) => item.date.slice(5)), data.curves.daily.map((item) => item.tokens), '#b14d28', 'rgba(177,77,40,0.12)', function(point) {
+                alert(`日期: ${point.label}\nToken 消耗: ${formatNumber(point.value)}`);
+            });
+            drawLineChart(document.getElementById('hourly-chart'), data.curves.hourly.map((item, index) => index % 3 === 0 ? item.hour : ''), data.curves.hourly.map((item) => item.tokens), '#2f7d4a', 'rgba(47,125,74,0.12)', function(point) {
+                alert(`时间: ${point.label}\nToken 消耗: ${formatNumber(point.value)}`);
+            });
             renderRecent(data.recent_requests);
         }
         refresh(); setInterval(refresh, 10000);

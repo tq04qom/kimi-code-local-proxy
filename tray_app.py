@@ -143,7 +143,7 @@ class TrayController:
         except (urllib.error.URLError, TimeoutError, OSError):
             return False
 
-    def _run_script(self, script_name: str) -> subprocess.CompletedProcess[str]:
+    def _run_script(self, script_name: str, *extra_args: str) -> subprocess.CompletedProcess[str]:
         script_path = ROOT / script_name
         if not script_path.exists():
             raise RuntimeError(f"Script not found: {script_path}")
@@ -155,6 +155,7 @@ class TrayController:
                 "Bypass",
                 "-File",
                 str(script_path),
+                *extra_args,
             ],
             cwd=ROOT,
             capture_output=True,
@@ -225,7 +226,7 @@ class TrayController:
     def start_service(self) -> None:
         self._set_busy(True)
         try:
-            result = self._run_script("start.ps1")
+            result = self._run_script("start.ps1", "-HiddenChild")
             self._refresh_icon()
             if result.returncode != 0:
                 output = (result.stderr or result.stdout or "Unknown error").strip()
@@ -236,7 +237,7 @@ class TrayController:
     def stop_service(self) -> None:
         self._set_busy(True)
         try:
-            result = self._run_script("stop.ps1")
+            result = self._run_script("stop.ps1", "-HiddenChild")
             self._refresh_icon()
             if result.returncode != 0:
                 output = (result.stderr or result.stdout or "Unknown error").strip()

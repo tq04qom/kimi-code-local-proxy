@@ -91,10 +91,26 @@ Z:/AI-NOVEL/97-local-kimi-api/.venv/Scripts/python.exe start.py
 .\start.ps1
 ```
 
+`start.ps1` 默认会以隐藏窗口方式拉起服务，不再保留额外的 PowerShell 启动窗口。
+
+如果你需要排查启动问题，想临时看到启动输出，可以改用：
+
+```powershell
+.\start.ps1 -Foreground
+```
+
 停止服务：
 
 ```powershell
 .\stop.ps1
+```
+
+`stop.ps1` 现在也默认以隐藏窗口方式执行。
+
+如果你需要排查停止流程，可以改用：
+
+```powershell
+.\stop.ps1 -Foreground
 ```
 
 查看弹窗式状态监控：

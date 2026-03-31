@@ -344,7 +344,7 @@ class ServiceRuntime:
         past_week = [today - timedelta(days=index) for index in range(6, -1, -1)]
         past_week_map = {day.isoformat(): {"date": day.isoformat(), "requests": 0, "tokens": 0} for day in past_week}
         hourly_map = {hour: {"hour": f"{hour:02d}:00", "requests": 0, "tokens": 0} for hour in range(24)}
-        recent_requests: deque[dict[str, Any]] = deque(maxlen=20)
+        recent_requests: list[tuple[int, dict[str, Any]]] = []
 
         total_requests = 0
         total_chat_requests = 0
@@ -414,19 +414,22 @@ class ServiceRuntime:
                         prompt_preview = request_body_text[:120]
 
                     if not excluded_from_metrics:
-                        recent_requests.appendleft(
-                            {
-                                "request_id": entry.get("request_id", ""),
-                                "time": timestamp.strftime("%H:%M:%S"),
-                                "method": entry.get("method", ""),
-                                "path": path,
-                                "status_code": status_code,
-                                "duration_ms": duration_ms,
-                                "tokens": tokens,
-                                "token_mode": metrics.get("token_mode", "none"),
-                                "model": metrics.get("model", ""),
-                                "prompt_preview": prompt_preview,
-                            }
+                        recent_requests.append(
+                            (
+                                int(entry.get("timestamp", 0) or 0),
+                                {
+                                    "request_id": entry.get("request_id", ""),
+                                    "time": timestamp.strftime("%m-%d %H:%M:%S"),
+                                    "method": entry.get("method", ""),
+                                    "path": path,
+                                    "status_code": status_code,
+                                    "duration_ms": duration_ms,
+                                    "tokens": tokens,
+                                    "token_mode": metrics.get("token_mode", "none"),
+                                    "model": metrics.get("model", ""),
+                                    "prompt_preview": prompt_preview,
+                                },
+                            )
                         )
 
         if total_requests:
@@ -451,7 +454,7 @@ class ServiceRuntime:
                 "daily": list(past_week_map.values()),
                 "hourly": [hourly_map[hour] for hour in range(24)],
             },
-            "recent_requests": list(recent_requests),
+            "recent_requests": [row for _, row in sorted(recent_requests, key=lambda item: item[0], reverse=True)[:20]],
         }
 
 

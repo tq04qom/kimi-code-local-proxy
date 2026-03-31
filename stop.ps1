@@ -1,4 +1,31 @@
+param(
+    [switch]$HiddenChild,
+    [switch]$Foreground
+)
+
 $ErrorActionPreference = 'Stop'
+
+if (-not $HiddenChild -and -not $Foreground) {
+    $powershellExe = Join-Path $PSHOME 'powershell.exe'
+    if (-not (Test-Path $powershellExe)) {
+        $powershellExe = 'powershell.exe'
+    }
+
+    Start-Process `
+        -FilePath $powershellExe `
+        -ArgumentList @(
+            '-NoProfile',
+            '-ExecutionPolicy',
+            'Bypass',
+            '-File',
+            $PSCommandPath,
+            '-HiddenChild'
+        ) `
+        -WorkingDirectory $PSScriptRoot `
+        -WindowStyle Hidden | Out-Null
+
+    exit 0
+}
 
 $projectRoot = $PSScriptRoot
 $startScript = Join-Path $projectRoot 'start.py'
