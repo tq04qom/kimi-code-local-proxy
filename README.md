@@ -109,6 +109,42 @@ Z:/AI-NOVEL/97-local-kimi-api/.venv/Scripts/python.exe start.py
 .\open-dashboard.ps1
 ```
 
+启动系统托盘常驻图标：
+
+```powershell
+.\start-tray.ps1
+```
+
+托盘图标会常驻系统状态栏，右键可直接：
+
+- 启动服务
+- 停止服务
+- 查看状态
+- 打开 Dashboard
+- 打开日志目录
+- 开机自启动开关
+- 托盘启动后自动启动服务开关
+- 退出托盘
+
+托盘程序通过 `pythonw.exe` 启动，不显示控制台窗口；托盘里触发的启动/停止动作也会隐藏 PowerShell 终端。
+
+如果你希望登录 Windows 后托盘起来时顺手自动把本地服务也拉起，可以在托盘菜单里打开 `Start service when tray launches`。这个开关和 `Launch at startup` 是分开的：
+
+- `Launch at startup` 控制托盘是否跟随 Windows 启动
+- `Start service when tray launches` 控制托盘启动后是否自动启动本地 API 服务
+
+手动开启开机自启动：
+
+```powershell
+.\enable-autostart.ps1
+```
+
+手动关闭开机自启动：
+
+```powershell
+.\disable-autostart.ps1
+```
+
 总控菜单入口：
 
 ```powershell

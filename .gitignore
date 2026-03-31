@@ -3,3 +3,6 @@
 __pycache__/
 *.pyc
 logs/
+.tray.pid
+.tray.lock
+.tray-settings.json
