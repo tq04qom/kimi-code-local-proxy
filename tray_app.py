@@ -3,6 +3,7 @@ from __future__ import annotations
 import ctypes
 import json
 import os
+import shutil
 import subprocess
 import threading
 import time
@@ -22,12 +23,26 @@ ENV_FILE = ROOT / ".env"
 TRAY_PID_FILE = ROOT / ".tray.pid"
 TRAY_LOCK_FILE = ROOT / ".tray.lock"
 TRAY_SETTINGS_FILE = ROOT / ".tray-settings.json"
-POWERSHELL = os.environ.get("COMSPEC", "powershell.exe").replace("cmd.exe", "powershell.exe")
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 AUTOSTART_NAME = "LocalKimiApiTray"
 
 ICON_SIZE = 64
 STATUS_POLL_SECONDS = 5
+
+
+def _resolve_powershell() -> str:
+    comspec = os.environ.get("COMSPEC", "")
+    if comspec:
+        candidate = comspec.replace("cmd.exe", "WindowsPowerShell\\v1.0\\powershell.exe")
+        if os.path.exists(candidate):
+            return candidate
+    explicit = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+    if os.path.exists(explicit):
+        return explicit
+    return shutil.which("powershell.exe") or "powershell.exe"
+
+
+POWERSHELL = _resolve_powershell()
 
 
 def _env_value(key: str, default: str) -> str:
@@ -130,6 +145,8 @@ class TrayController:
 
     def _run_script(self, script_name: str) -> subprocess.CompletedProcess[str]:
         script_path = ROOT / script_name
+        if not script_path.exists():
+            raise RuntimeError(f"Script not found: {script_path}")
         return subprocess.run(
             [
                 POWERSHELL,
@@ -194,7 +211,14 @@ class TrayController:
     def _wrap_thread(self, func: Callable[[], None]) -> Callable[[pystray.Icon, pystray.MenuItem], None]:
         def runner(icon: pystray.Icon, item: pystray.MenuItem) -> None:
             _ = icon, item
-            thread = threading.Thread(target=func, daemon=True)
+
+            def safe_run() -> None:
+                try:
+                    func()
+                except Exception as exc:
+                    show_message("local-kimi-api", f"Action failed.\n\n{exc}", 0x10)
+
+            thread = threading.Thread(target=safe_run, daemon=True)
             thread.start()
 
         return runner
