@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import ctypes
 import json
@@ -211,7 +211,6 @@ class TrayController:
     def _wrap_thread(self, func: Callable[[], None]) -> Callable[[pystray.Icon, pystray.MenuItem], None]:
         def runner(icon: pystray.Icon, item: pystray.MenuItem) -> None:
             _ = icon, item
-
             def safe_run() -> None:
                 try:
                     func()
